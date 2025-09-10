@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Happy Birthday, Daeun!</title>
+  <style>
+    :root{
+      --bg:#000; --text:#fff; --gold:#ffd166; --pink:#ff69b4; --choco1:#5a3826; --choco2:#7a4a33; --plate:#22242c;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif, system-ui, -apple-system, "Noto Sans KR", Segoe UI, Roboto, sans-serif}
+    body{min-height:100svh; overflow-x:hidden}
+
+    /* FX Canvas behind UI */
+    canvas#fx{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:0}
+
+    header, .stage, .controls, footer{position:relative; z-index:1}
+    header{padding-top:28px; text-align:center}
+    h1{margin:0 12px; font-size:clamp(28px, 3.4vw + 12px, 46px); text-shadow:0 0 10px rgba(255,255,255,.12), 0 0 20px rgba(255,105,180,.25)}
+    .subtitle{opacity:.8; margin-top:6px}
+
+    /* Stage holds cake + plate; fixed height prevents layout shift */
+    .stage{width:min(720px, 92vw); height:clamp(360px, 50vh, 560px); margin:18px auto 8px; position:relative; display:grid; align-items:end; justify-items:center}
+
+    /* Plate under the cake */
+    .plate{position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:82%; height:24px; border-radius:1000px; background:linear-gradient(#2b2e39, var(--plate)); box-shadow:0 16px 48px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.08)}
+    .plate::before{content:""; position:absolute; inset:6px 12% 8px; border-radius:1000px; background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.35))}
+
+    /* Cake: base -> middle -> top (largest at bottom) */
+    .cake{position:absolute; bottom:22px; width:min(440px, 76vw); height:260px}
+    .tier{position:absolute; left:50%; transform:translateX(-50%); border-radius:18px; background:repeating-linear-gradient(-8deg, var(--choco1) 0 16px, var(--choco2) 16px 32px); box-shadow:inset 0 8px 0 rgba(255,255,255,.06), inset 0 -10px 0 rgba(0,0,0,.2)}
+    .tier.base{width:100%; height:110px; bottom:0; border-radius:20px 20px 26px 26px}
+    .tier.middle{width:78%; height:90px; bottom:94px; border-radius:18px 18px 24px 24px}
+    .tier.top{width:56%; height:76px; bottom:170px; border-radius:16px 16px 22px 22px}
+
+    /* Candles sit on top tier */
+    .candles{position:absolute; left:50%; transform:translateX(-50%); bottom: calc(100% - 4px); display:flex; gap:14px} 
+    .candle{width:10px; height:42px; background:repeating-linear-gradient(90deg,#ffd3ec 0 6px,#ff9ed6 6px 12px); border-radius:6px; position:relative; box-shadow:0 2px 0 rgba(0,0,0,.2) inset}
+    .flame{position:absolute; left:50%; transform:translateX(-50%); top:-22px; width:14px; height:20px; border-radius:10px 10px 10px 10px / 14px 14px 6px 6px; background:radial-gradient(circle at 50% 30%, #fff 0 30%, #ffe082 30% 55%, #ffb703 55% 100%); filter:drop-shadow(0 0 10px #ffc300); animation:flicker .12s infinite alternate ease-in-out}
+    @keyframes flicker{from{transform:translateX(-50%) scale(1)} to{transform:translateX(-50%) scale(1.12)}}
+
+    .controls{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:6px 0 16px}
+    button{background:#121212; color:#fff; border:1px solid #333; padding:10px 14px; border-radius:999px; cursor:pointer; font-weight:700}
+    button:hover{box-shadow:0 0 0 3px rgba(255,255,255,.08) inset}
+    button:active{transform:translateY(1px)}
+
+    footer{opacity:.7; font-size:13px; text-align:center; margin-bottom:16px}
+
+    /* Mobile tweaks */
+    @media (max-width:480px){
+      .cake{height:230px}
+      .tier.base{height:98px}
+      .tier.middle{height:80px; bottom:84px}
+      .tier.top{height:66px; bottom:150px}
+      .candles{bottom:150px; gap:10px}
+    }
+  </style>
+</head>
+<body>
+  <canvas id="fx"></canvas>
+
+  <header>
+    <h1>🎉 다은이 생일 축하해! 🎂</h1>
+    <div class="subtitle">화면을 클릭해도 폭죽이 터져요 💥</div>
+  </header>
+
+  <section class="stage">
+    <div class="cake">
+      <div class="tier base"></div>
+      <div class="tier middle"></div>
+      <div class="tier top">
+        <div class="candles">
+          <div class="candle"><div class="flame"></div></div>
+          <div class="candle"><div class="flame"></div></div>
+          <div class="candle"><div class="flame"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="plate"></div>
+  </section>
+
+  <div class="controls">
+    <button id="btnFire">🎆 폭죽!</button>
+    <button id="btnConfetti">🎊 컨페티 ON</button>
+    <button id="btnAuto">⏱️ 자동 ON</button>
+  </div>
+
+  <footer>GitHub Pages에 `index.html`로 올리면 바로 동작합니다.</footer>
+
+  <script>
+    // HiDPI-safe canvas sizing
+    const canvas = document.getElementById('fx');
+    const ctx = canvas.getContext('2d');
+    let W, H, DPR;
+    function size(){
+      DPR = Math.min(2, window.devicePixelRatio || 1);
+      W = Math.floor(innerWidth * DPR);
+      H = Math.floor(innerHeight * DPR);
+      canvas.width = W; canvas.height = H;
+    }
+    addEventListener('resize', size); size();
+
+    const particles = [];
+    const rand = (a,b)=>Math.random()*(b-a)+a;
+    let confettiOn = true;
+    let autoOn = true;
+
+    function firework(x, y, power=1){
+      const colors = ['#ff69b4','#ffd166','#00ffff','#adff2f','#ff4500','#bdb2ff'];
+      const n = Math.round(rand(70, 120) * power);
+      for(let i=0;i<n;i++){
+        const ang = rand(0, Math.PI*2);
+        const spd = rand(2, 5.5) * power;
+        particles.push({
+          type:'spark',
+          x:x*DPR, y:y*DPR, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
+          life: rand(45, 95), size: rand(1,2.4)*DPR,
+          color: colors[Math.floor(Math.random()*colors.length)],
+          drag: 0.986, gravity: 0.05*DPR
+        });
+      }
+      if(confettiOn) conf(x, y);
+    }
+
+    function conf(x, y){
+      const n = Math.round(rand(30,60));
+      for(let i=0;i<n;i++){
+        particles.push({
+          type:'confetti', x:x*DPR, y:y*DPR,
+          vx: rand(-2.2,2.2)*DPR, vy: rand(-4,-1.2)*DPR,
+          w: rand(6,10)*DPR, h: rand(10,16)*DPR,
+          rot: rand(0, Math.PI*2), vr: rand(-0.18,0.18),
+          life: rand(120, 220),
+          color: `hsl(${Math.floor(rand(0,360))} 100% 60%)`,
+          drag: 0.992, gravity: 0.06*DPR
+        });
+      }
+    }
+
+    // render loop
+    let t = 0;
+    function loop(){
+      requestAnimationFrame(loop);
+      ctx.fillStyle = 'rgba(0,0,0,.25)';
+      ctx.fillRect(0,0,W,H);
+
+      if(autoOn && ++t % 60 === 0){
+        const x = rand(innerWidth*0.15, innerWidth*0.85);
+        const y = rand(innerHeight*0.1, innerHeight*0.45);
+        firework(x, y, 1.15);
+      }
+
+      for(let i=particles.length-1;i>=0;i--){
+        const p = particles[i];
+        p.vx *= p.drag; p.vy *= p.drag; p.vy += p.gravity;
+        p.x += p.vx; p.y += p.vy; p.life--;
+        if(p.type==='spark'){
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+          ctx.fillStyle = p.color; ctx.globalCompositeOperation='lighter'; ctx.fill(); ctx.globalCompositeOperation='source-over';
+        } else { // confetti
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot += p.vr);
+          ctx.fillStyle = p.color; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h); ctx.restore();
+        }
+        if(p.life<=0 || p.y>H+50) particles.splice(i,1);
+      }
+    }
+    loop();
+
+    // interactions
+    addEventListener('pointerdown', e=> firework(e.clientX, e.clientY, 1.4));
+    document.getElementById('btnFire').addEventListener('click', ()=> firework(innerWidth*rand(0.2,0.8), innerHeight*rand(0.15,0.5), 1.4));
+    document.getElementById('btnConfetti').addEventListener('click', e=>{ confettiOn = !confettiOn; e.target.textContent = confettiOn ? '🎊 컨페티 ON' : '🎊 컨페티 OFF'; });
+    document.getElementById('btnAuto').addEventListener('click', e=>{ autoOn = !autoOn; e.target.textContent = autoOn ? '⏱️ 자동 ON' : '⏱️ 자동 OFF'; });
+
+    // initial pop
+    setTimeout(()=> firework(innerWidth*0.5, innerHeight*0.3, 1.6), 600);
+  </script>
+<script>
+  // === Birthday Melody (Web Audio, no regex literals in source) ===
+  let audioCtx = null, masterGain = null, isMelodyOn = false, melodyTimer = null;
+  const tempo = 96; // BPM
+  const NOTE_INDEX = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+  function noteToFreq(n){
+    const octave = parseInt(n.slice(-1), 10);
+    const name = n.slice(0, -1);
+    const semis = (octave + 1) * 12 + (NOTE_INDEX[name] || 0);
+    return 440 * Math.pow(2, (semis - 69) / 12);
+  }
+  function startAudio(){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.14;
+    masterGain.connect(audioCtx.destination);
+  }
+  function playTone(freq, start, dur){
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, start);
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.linearRampToValueAtTime(0.9, start + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + Math.max(0.06, dur - 0.02));
+    o.connect(g); g.connect(masterGain);
+    o.start(start); o.stop(start + dur + 0.05);
+  }
+  const MELODY = [
+    ['G4',1], ['G4',0.5], ['A4',1], ['G4',1], ['C5',1], ['B4',2],
+    ['G4',1], ['G4',0.5], ['A4',1], ['G4',1], ['D5',1], ['C5',2],
+    ['G4',1], ['G4',0.5], ['G5',1], ['E5',1], ['C5',1], ['B4',1], ['A4',2],
+    ['F5',1], ['F5',0.5], ['E5',1], ['C5',1], ['D5',1], ['C5',2]
+  ];
+  function scheduleMelody(){
+    if(!audioCtx) startAudio();
+    const beat = 60/tempo;
+    let t = audioCtx.currentTime + 0.1;
+    for(const pair of MELODY){
+      const note = pair[0]; const beats = pair[1];
+      const f = noteToFreq(note);
+      const d = beats * beat;
+      playTone(f, t, d);
+      t += d * 1.05;
+    }
+    if(isMelodyOn){
+      const delayMs = Math.max(100, (t - audioCtx.currentTime) * 1000);
+      melodyTimer = setTimeout(scheduleMelody, delayMs);
+    }
+  }
+  const btnMelody = document.getElementById('btnMelody');
+  if(btnMelody){
+    btnMelody.addEventListener('click', async (e)=>{
+      try{
+        if(!audioCtx) startAudio();
+        if(audioCtx.state === 'suspended') await audioCtx.resume();
+        if(!isMelodyOn){
+          isMelodyOn = true;
+          masterGain.gain.setTargetAtTime(0.14, audioCtx.currentTime, 0.08);
+          scheduleMelody();
+          e.target.textContent = '⏸️ 멜로디 OFF';
+        }else{
+          isMelodyOn = false;
+          if(melodyTimer) clearTimeout(melodyTimer);
+          masterGain.gain.setTargetAtTime(0.0001, audioCtx.currentTime, 0.05);
+          e.target.textContent = '🎵 멜로디 ON';
+        }
+      }catch(err){
+        console.error(err);
+        alert('오디오를 시작할 수 없어요. 기기 음량/무음모드 또는 브라우저 권한을 확인해 주세요.');
+      }
+    });
+  }
+</script>
+</body>
+</html>
